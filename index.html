@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Blood Cell Cancer Detection (Frontend Only)</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f8f9fa;
+      margin: 0;
+      padding: 0;
+      text-align: center;
+      transition: 0.3s;
+    }
+    .container {
+      margin: 40px auto;
+      width: 90%;
+      max-width: 900px;
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #c2185b;
+      margin-bottom: 10px;
+    }
+    .upload-box {
+      border: 2px dashed #c2185b;
+      padding: 30px;
+      border-radius: 10px;
+      cursor: pointer;
+      margin-bottom: 15px;
+      transition: 0.3s;
+    }
+    .upload-box.dragover {
+      background: #fce4ec;
+    }
+    input[type="file"] {
+      display: none;
+    }
+    .btn {
+      background: #c2185b;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 5px;
+    }
+    .btn:hover {
+      background: #ad1457;
+    }
+    .spinner {
+      display: none;
+      margin: 15px auto;
+      border: 5px solid #f3f3f3;
+      border-top: 5px solid #c2185b;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .preview-area {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .preview-item {
+      position: relative;
+      margin: 10px;
+    }
+    .preview-item img {
+      max-width: 120px;
+      border-radius: 8px;
+      border: 2px solid #ccc;
+    }
+    .delete-btn {
+      position: absolute;
+      top: -8px;
+      right: -8px;
+      background: red;
+      color: white;
+      border: none;
+      border-radius: 50%;
+      cursor: pointer;
+      padding: 2px 6px;
+      font-size: 14px;
+    }
+    .dark-mode {
+      background: #121212;
+      color: #fff;
+    }
+    .dark-mode .container {
+      background: #1e1e1e;
+      color: #fff;
+    }
+    .toggle-btn {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      background: #c2185b;
+      color: white;
+      padding: 8px 16px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+      font-size: 14px;
+    }
+    th, td {
+      padding: 8px;
+      border: 1px solid #ccc;
+    }
+    th {
+      background: #f1f1f1;
+    }
+    .healthy {
+      color: green;
+      font-weight: bold;
+    }
+    .cancer {
+      color: red;
+      font-weight: bold;
+    }
+    .info {
+      margin-top: 30px;
+      text-align: left;
+    }
+    .info h3 {
+      color: #c2185b;
+    }
+    #searchInput {
+      margin: 10px 0;
+      padding: 8px;
+      width: 60%;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
+
+    /* ✅ Chart resizing */
+    .chart-box {
+      max-width: 250px;   /* Smaller chart */
+      margin: 20px auto;
+    }
+    #resultChart {
+      width: 100% !important;
+      height: auto !important;
+    }
+  </style>
+</head>
+<body>
+
+  <button class="toggle-btn" onclick="toggleDarkMode()">🌙 Dark Mode</button>
+
+  <div class="container">
+    <h1>🧬 Blood Cell Cancer Detection</h1>
+    <div class="upload-box" id="dropArea">
+      Drag & Drop or Click to Upload Images
+      <input type="file" id="fileInput" multiple accept="image/*">
+    </div>
+
+    <div class="preview-area" id="previewArea"></div>
+    <button class="btn" onclick="detectCancer()">Detect</button>
+    <div class="spinner" id="spinner"></div>
+
+    <h2>Prediction History</h2>
+    <input type="text" id="searchInput" onkeyup="filterTable()" placeholder="Search by prediction...">
+
+    <table>
+      <thead>
+        <tr>
+          <th>Image</th>
+          <th>Prediction</th>
+          <th>Confidence</th>
+          <th>Time</th>
+        </tr>
+      </thead>
+      <tbody id="historyTable"></tbody>
+    </table>
+
+    <!-- ✅ Smaller chart -->
+    <div class="chart-box">
+      <canvas id="resultChart"></canvas>
+    </div>
+
+    <button class="btn" onclick="downloadReport()">Download Report (PDF)</button>
+    <button class="btn" onclick="downloadCSV()">Download CSV</button>
+
+    <div class="info">
+      <h3>About Blood Cell Cancer</h3>
+      <p><b>Leukemia:</b> Affects white blood cells and bone marrow.</p>
+      <p><b>Lymphoma:</b> Affects lymphatic system (lymph nodes).</p>
+      <p><b>Myeloma:</b> Affects plasma cells in bone marrow.</p>
+      <p><i>Disclaimer: This is a demo tool and not a medical diagnosis.</i></p>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    const fileInput = document.getElementById("fileInput");
+    const dropArea = document.getElementById("dropArea");
+    const previewArea = document.getElementById("previewArea");
+    const spinner = document.getElementById("spinner");
+    const historyTable = document.getElementById("historyTable");
+    let uploadedFiles = [];
+    let chart;
+
+    // Drag & Drop events
+    dropArea.addEventListener("click", () => fileInput.click());
+    dropArea.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      dropArea.classList.add("dragover");
+    });
+    dropArea.addEventListener("dragleave", () => dropArea.classList.remove("dragover"));
+    dropArea.addEventListener("drop", (e) => {
+      e.preventDefault();
+      dropArea.classList.remove("dragover");
+      handleFiles(e.dataTransfer.files);
+    });
+    fileInput.addEventListener("change", () => handleFiles(fileInput.files));
+
+    function handleFiles(files) {
+      for (let file of files) {
+        uploadedFiles.push(file);
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const div = document.createElement("div");
+          div.classList.add("preview-item");
+          const img = document.createElement("img");
+          img.src = e.target.result;
+          const del = document.createElement("button");
+          del.classList.add("delete-btn");
+          del.textContent = "×";
+          del.onclick = () => {
+            uploadedFiles = uploadedFiles.filter(f => f !== file);
+            div.remove();
+          };
+          div.appendChild(img);
+          div.appendChild(del);
+          previewArea.appendChild(div);
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+
+    function detectCancer() {
+      if (uploadedFiles.length === 0) {
+        alert("Please upload at least one image.");
+        return;
+      }
+
+      spinner.style.display = "block";
+
+      setTimeout(() => {
+        spinner.style.display = "none";
+        uploadedFiles.forEach(file => {
+          const prediction = Math.random() > 0.5 ? "Cancer Detected" : "Healthy";
+          const confidence = (Math.random() * (99 - 80) + 80).toFixed(2) + "%";
+          const time = new Date().toLocaleTimeString();
+
+          const row = document.createElement("tr");
+          const imgCell = document.createElement("td");
+          const img = document.createElement("img");
+          img.src = URL.createObjectURL(file);
+          img.width = 60;
+          imgCell.appendChild(img);
+
+          const predCell = document.createElement("td");
+          predCell.textContent = prediction;
+          predCell.className = prediction === "Healthy" ? "healthy" : "cancer";
+
+          const confCell = document.createElement("td");
+          confCell.textContent = confidence;
+
+          const timeCell = document.createElement("td");
+          timeCell.textContent = time;
+
+          row.appendChild(imgCell);
+          row.appendChild(predCell);
+          row.appendChild(confCell);
+          row.appendChild(timeCell);
+
+          historyTable.appendChild(row);
+
+          // Speak prediction
+          const msg = new SpeechSynthesisUtterance(`Result: ${prediction}, Confidence: ${confidence}`);
+          speechSynthesis.speak(msg);
+        });
+        uploadedFiles = [];
+        previewArea.innerHTML = "";
+        updateChart();
+      }, 2000); // simulate detection time
+    }
+
+    function toggleDarkMode() {
+      document.body.classList.toggle("dark-mode");
+    }
+
+    function downloadReport() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      doc.text("Blood Cell Cancer Detection Report", 20, 20);
+      let y = 40;
+      for (let row of historyTable.rows) {
+        const prediction = row.cells[1].textContent;
+        const confidence = row.cells[2].textContent;
+        const time = row.cells[3].textContent;
+        doc.text(`Prediction: ${prediction}, Confidence: ${confidence}, Time: ${time}`, 20, y);
+        y += 10;
+      }
+      doc.save("CancerDetectionReport.pdf");
+    }
+
+    function downloadCSV() {
+      let csv = "Prediction,Confidence,Time\n";
+      for (let row of historyTable.rows) {
+        const prediction = row.cells[1].textContent;
+        const confidence = row.cells[2].textContent;
+        const time = row.cells[3].textContent;
+        csv += `${prediction},${confidence},${time}\n`;
+      }
+      const blob = new Blob([csv], { type: "text/csv" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "CancerDetectionReport.csv";
+      link.click();
+    }
+
+    function filterTable() {
+      const filter = document.getElementById("searchInput").value.toLowerCase();
+      for (let row of historyTable.rows) {
+        const prediction = row.cells[1].textContent.toLowerCase();
+        row.style.display = prediction.includes(filter) ? "" : "none";
+      }
+    }
+
+    function updateChart() {
+      const healthyCount = [...historyTable.rows].filter(row => row.cells[1].textContent === "Healthy").length;
+      const cancerCount = [...historyTable.rows].filter(row => row.cells[1].textContent.includes("Cancer")).length;
+      const ctx = document.getElementById("resultChart").getContext("2d");
+      if (chart) chart.destroy();
+      chart = new Chart(ctx, {
+        type: "pie",
+        data: {
+          labels: ["Healthy", "Cancer Detected"],
+          datasets: [{
+            data: [healthyCount, cancerCount],
+            backgroundColor: ["green", "red"]
+          }]
+        }
+      });
+    }
+
+    // Auto dark/light mode
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      document.body.classList.add("dark-mode");
+    }
+  </script>
+</body>
+</html>
